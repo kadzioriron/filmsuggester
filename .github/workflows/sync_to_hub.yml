@@ -16,4 +16,11 @@ jobs:
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://kadzioriron:$HF_TOKEN@huggingface.co/spaces/kadzioriron/flmsuggester main
+        run: |
+          # Настраиваем git пользователя для миграции
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          # Конвертируем тяжелые файлы в LFS-указатели, так как у HF лимит 10MB
+          git lfs migrate import --yes --include="*.csv,*.pkl"
+          # Пушим на Hugging Face
+          git push --force https://kadzioriron:$HF_TOKEN@huggingface.co/spaces/kadzioriron/flmsuggester main
