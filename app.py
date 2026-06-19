@@ -29,16 +29,27 @@ def get_letterboxd_watched(username, max_pages=5):
         
     return list(set(movies))
 
+from huggingface_hub import hf_hub_download
+import os
+
 # 2. Load model and data (cached)
 @st.cache_resource
 def load_model_and_data():
-    df = pd.read_csv("movies_cleaned.csv")
+    # Название репозитория, куда вы загрузили файлы (замените если отличается)
+    repo_id = "kadzioriron/filmsuggester" 
+    
+    # Скачиваем файлы из HF Hub
+    df_path = hf_hub_download(repo_id=repo_id, filename="movies_cleaned.csv")
+    vectorizer_path = hf_hub_download(repo_id=repo_id, filename="vectorizer.pkl")
+    tfidf_path = hf_hub_download(repo_id=repo_id, filename="tfidf_matrix.pkl")
+
+    df = pd.read_csv(df_path)
     # Remove year like (1995) for better matching with Letterboxd
     df['title_lower'] = df['title'].str.replace(r'\s*\(\d{4}\)', '', regex=True).str.lower()
     
-    with open("vectorizer.pkl", "rb") as f:
+    with open(vectorizer_path, "rb") as f:
         vectorizer = pickle.load(f)
-    with open("tfidf_matrix.pkl", "rb") as f:
+    with open(tfidf_path, "rb") as f:
         tfidf_matrix = pickle.load(f)
         
     return df, vectorizer, tfidf_matrix
