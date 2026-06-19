@@ -1,0 +1,23 @@
+# Environments
+venv/
+env/
+.env
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Heavy raw datasets
+ml-25m/
+ratings.csv
+genome-scores.csv
+genome-tags.csv
+# NOTE: The following files are NOT ignored because they are required for Hugging Face Spaces deployment:
+# movies_cleaned.csv
+# vectorizer.pkl
+# tfidf_matrix.pkl
