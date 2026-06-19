@@ -66,41 +66,111 @@ def load_model_and_data():
 df, vectorizer, tfidf_matrix = load_model_and_data()
 
 # --- UI ---
-st.title("🎬 Movie Recommender")
-username = st.text_input("Letterboxd Username (e.g., username):")
+st.title("🎬 AI Movie Recommender")
 
-if st.button("Find Recommendations"):
-    if username:
-        with st.spinner("Analyzing profile..."):
-            user_films = get_letterboxd_watched(username)
-            
-            if user_films:
-                user_films_lower = [f.lower() for f in user_films]
+st.markdown("""
+### Welcome to the AI Movie Recommender! 🍿
+This application uses a Machine Learning algorithm called **TF-IDF** (Term Frequency-Inverse Document Frequency) and **Cosine Similarity** to analyze the metadata of over 15,000 popular movies. 
+
+**How it works:**
+1. It analyzes the genres and thousands of user-generated tags for each movie.
+2. It builds a mathematical "taste profile" based on the movies you like.
+3. It compares your taste profile with the entire database to find the highest mathematical match.
+
+You can either parse your public **Letterboxd** profile, or **manually select** your favorite movies and genres!
+---
+""")
+
+tab1, tab2 = st.tabs(["📊 Letterboxd Profile", "🎯 Manual Selection"])
+
+with tab1:
+    st.subheader("Import from Letterboxd")
+    username = st.text_input("Letterboxd Username (e.g., kadzioriron):")
+
+    if st.button("Find Recommendations from Profile"):
+        if username:
+            with st.spinner("Analyzing profile and parsing pages..."):
+                user_films = get_letterboxd_watched(username)
                 
-                # Find viewed movies in our db
-                matched_indices = df[df['title_lower'].isin(user_films_lower)].index
-                
-                if len(matched_indices) == 0:
-                    st.warning("None of your watched movies are in our top-15000 database :(")
+                if user_films:
+                    user_films_lower = [f.lower() for f in user_films]
+                    
+                    matched_indices = df[df['title_lower'].isin(user_films_lower)].index
+                    
+                    if len(matched_indices) == 0:
+                        st.warning("None of your watched movies are in our top-15000 database :(")
+                    else:
+                        st.success(f"Successfully parsed {len(user_films)} movies! Found {len(matched_indices)} of them in our database. Generating top...")
+                        
+                        user_profile_vector = tfidf_matrix[matched_indices].mean(axis=0)
+                        sim_scores = cosine_similarity(np.asarray(user_profile_vector), tfidf_matrix).flatten()
+                        
+                        df['score'] = sim_scores
+                        recommendations = df[~df['title_lower'].isin(user_films_lower)].sort_values(by="score", ascending=False)
+                        
+                        st.subheader("🔥 Recommended for you:")
+                        for idx, row in recommendations.head(15).iterrows():
+                            st.write(f"**{row['title']}** (Similarity: {round(row['score'] * 100, 1)}%)")
                 else:
-                    st.success(f"Found {len(matched_indices)} of your movies in the database! Generating top...")
-                    
-                    # 3. Prediction logic
-                    # Average vectors of watched movies to get taste profile
-                    user_profile_vector = tfidf_matrix[matched_indices].mean(axis=0)
-                    
-                    # Calculate cosine similarity with all movies
-                    sim_scores = cosine_similarity(np.asarray(user_profile_vector), tfidf_matrix).flatten()
-                    
-                    df['score'] = sim_scores
-                    
-                    # Filter out already watched and sort
-                    recommendations = df[~df['title_lower'].isin(user_films_lower)].sort_values(by="score", ascending=False)
-                    
-                    st.subheader("🔥 Recommended for you:")
-                    for idx, row in recommendations.head(10).iterrows():
-                        st.write(f"**{row['title']}** (Similarity: {round(row['score'] * 100, 1)}%)")
-            else:
-                st.error("User not found or diary is hidden.")
-    else:
-        st.error("Please enter a username!")
+                    st.error("User not found, diary is hidden, or there are no logged movies.")
+        else:
+            st.error("Please enter a username!")
+
+with tab2:
+    st.subheader("Build your custom taste profile")
+    
+    # Selection of favorite movies from the database
+    selected_movies = st.multiselect(
+        "Select some of your favorite movies:",
+        options=df['title'].tolist(),
+        max_selections=5,
+        help="Type to search through 15,000 movies"
+    )
+    
+    # Generic popular genres for manual input
+    popular_genres = [
+        "Action", "Adventure", "Animation", "Children", "Comedy", "Crime", 
+        "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "Musical", 
+        "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"
+    ]
+    
+    selected_genres = st.multiselect(
+        "Select your favorite genres:",
+        options=popular_genres
+    )
+    
+    if st.button("Get Custom Recommendations"):
+        if not selected_movies and not selected_genres:
+            st.warning("Please select at least one movie or genre!")
+        else:
+            with st.spinner("Crunching the numbers..."):
+                vectors_to_average = []
+                
+                # Add vectors for selected movies
+                if selected_movies:
+                    movie_indices = df[df['title'].isin(selected_movies)].index
+                    movie_vectors = tfidf_matrix[movie_indices]
+                    vectors_to_average.append(movie_vectors.mean(axis=0))
+                
+                # Add pseudo-vector for selected genres
+                if selected_genres:
+                    genres_string = " ".join(selected_genres).lower()
+                    genre_vector = vectorizer.transform([genres_string])
+                    vectors_to_average.append(genre_vector)
+                
+                # Combine movie vectors and genre vectors
+                if len(vectors_to_average) == 2:
+                    # Give slightly more weight to actual movies than just generic genres
+                    final_profile = (np.asarray(vectors_to_average[0]) * 0.7) + (np.asarray(vectors_to_average[1]) * 0.3)
+                else:
+                    final_profile = np.asarray(vectors_to_average[0])
+                
+                sim_scores = cosine_similarity(final_profile, tfidf_matrix).flatten()
+                df['score'] = sim_scores
+                
+                # Filter out the movies the user selected as input
+                recommendations = df[~df['title'].isin(selected_movies)].sort_values(by="score", ascending=False)
+                
+                st.subheader("✨ Your Custom Recommendations:")
+                for idx, row in recommendations.head(15).iterrows():
+                    st.write(f"**{row['title']}** (Match Score: {round(row['score'] * 100, 1)}%)")
