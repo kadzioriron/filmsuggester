@@ -150,20 +150,29 @@ with tab2:
                 if selected_movies:
                     movie_indices = df[df['title'].isin(selected_movies)].index
                     movie_vectors = tfidf_matrix[movie_indices]
-                    vectors_to_average.append(movie_vectors.mean(axis=0))
+                    # Convert to dense array to avoid sparse matrix shape issues
+                    vectors_to_average.append(np.asarray(movie_vectors.mean(axis=0)))
                 
                 # Add pseudo-vector for selected genres
                 if selected_genres:
                     genres_string = " ".join(selected_genres).lower()
                     genre_vector = vectorizer.transform([genres_string])
-                    vectors_to_average.append(genre_vector)
+                    # Convert to dense array
+                    vectors_to_average.append(genre_vector.toarray())
                 
                 # Combine movie vectors and genre vectors
                 if len(vectors_to_average) == 2:
                     # Give slightly more weight to actual movies than just generic genres
-                    final_profile = (np.asarray(vectors_to_average[0]) * 0.7) + (np.asarray(vectors_to_average[1]) * 0.3)
+                    final_profile = (vectors_to_average[0] * 0.7) + (vectors_to_average[1] * 0.3)
                 else:
-                    final_profile = np.asarray(vectors_to_average[0])
+                    final_profile = vectors_to_average[0]
+                
+                # Ensure the final profile is a 2D array for cosine_similarity
+                if len(final_profile.shape) == 1:
+                    final_profile = final_profile.reshape(1, -1)
+                elif len(final_profile.shape) == 3:
+                     # Just in case we ended up with an extra dimension
+                     final_profile = final_profile.reshape(1, -1)
                 
                 sim_scores = cosine_similarity(final_profile, tfidf_matrix).flatten()
                 df['score'] = sim_scores
