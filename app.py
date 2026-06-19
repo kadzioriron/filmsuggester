@@ -7,27 +7,36 @@ import pickle
 import numpy as np
 
 # 1. Letterboxd parser
-def get_letterboxd_watched(username, max_pages=5):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    movies = []
+def get_letterboxd_watched(username):
+    url = f"https://letterboxd.com/{username}/films/"
     
-    for page in range(1, max_pages + 1):
-        url = f"https://letterboxd.com/{username}/films/page/{page}/"
-        response = requests.get(url, headers=headers)
+    # Маскируем скрипт под настоящий Google Chrome на Windows
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://google.com/"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        # Если сайт всё равно заблокировал запрос, выводим реальный код ошибки на экран
         if response.status_code != 200:
-            break
+            st.error(f"Ошибка доступа к Letterboxd. Код ответа сервера: {response.status_code}")
+            return []
             
         soup = BeautifulSoup(response.text, "html.parser")
-        imgs = soup.find_all("img")
         
-        # If no movies found on this page, stop
-        page_movies = [img.get("alt") for img in imgs if img.get("alt")]
-        if not page_movies:
-            break
-            
-        movies.extend(page_movies)
+        # Собираем названия фильмов
+        films = [img["alt"] for img in soup.find_all("img") if img.get("alt")]
         
-    return list(set(movies))
+        # Letterboxd иногда подтягивает аватарку юзера в img alt, отфильтруем пустые значения
+        return list(set([f for f in films if f.strip()]))
+        
+    except Exception as e:
+        st.error(f"Ошибка соединения: {e}")
+        return []
 
 from huggingface_hub import hf_hub_download
 import os
