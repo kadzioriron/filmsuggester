@@ -12,7 +12,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Push to hub
+      - name: Clean history and push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://kadzioriron:$HF_TOKEN@huggingface.co/spaces/kadzioriron/flmsuggester main
+        run: |
+          git rm --cached movies_cleaned.csv vectorizer.pkl tfidf_matrix.pkl || true
+          git commit -m "Remove large files before pushing" || true
+          # Используем git filter-branch для удаления файлов из всей истории
+          git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch movies_cleaned.csv vectorizer.pkl tfidf_matrix.pkl' --prune-empty --tag-name-filter cat -- --all
+          git push --force https://kadzioriron:$HF_TOKEN@huggingface.co/spaces/kadzioriron/flmsuggester main
